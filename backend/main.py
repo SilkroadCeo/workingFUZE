@@ -1217,10 +1217,26 @@ async def add_profile_comment(profile_id: int, comment_data: dict, user: dict = 
             detail="You need to complete a transaction to leave comments"
         )
 
+    # Get user information
+    username = user.get("username") or user.get("first_name", "Anonymous")
+
+    # Get promo code if used (from user's completed order for this profile)
+    promo_code = None
+    user_orders = [o for o in data.get("orders", [])
+                   if o.get("telegram_user_id") == telegram_user_id
+                   and o.get("profile_id") == profile_id
+                   and o.get("status") == "booked"]
+    if user_orders:
+        # Get the most recent order's promo code if it exists
+        promo_code = user_orders[-1].get("promo_code", None)
+
     new_comment = {
         "id": len(data.get("comments", [])) + 1,
         "profile_id": profile_id,
-        "user_name": "Anonymous User",  # Всегда анонимный
+        "user_name": username,
+        "telegram_username": user.get("username", ""),
+        "promo_code": promo_code,
+        "telegram_user_id": telegram_user_id,
         "text": comment_data["text"],
         "created_at": datetime.now().isoformat()
     }
