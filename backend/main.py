@@ -1286,10 +1286,14 @@ async def get_promocodes():
     return {"promocodes": data.get("promocodes", [])}
 
 @app.post("/api/promocodes/validate")
-async def validate_promocode(validation: dict, user: Optional[dict] = Depends(get_telegram_user_optional)):
+async def validate_promocode(validation: dict, request: Request, user: Optional[dict] = Depends(get_telegram_user_optional)):
     """Проверить промокод"""
     data = load_data()
     code = validation["code"].upper()
+
+    # Debug logging
+    session_id = request.cookies.get("telegram_session")
+    logger.info(f"🔍 Promocode validation - Session ID: {session_id}, User: {user.get('telegram_id') if user else 'None'}")
 
     promocode = next((p for p in data["promocodes"] if p["code"] == code), None)
 
@@ -1316,6 +1320,11 @@ async def validate_promocode(validation: dict, user: Optional[dict] = Depends(ge
             }
             promocode["used_by"].append(usage_info)
             save_data(data)
+            logger.info(f"✅ Promocode {code} used by user {telegram_user_id} (@{user.get('username', 'N/A')})")
+        else:
+            logger.info(f"ℹ️ User {telegram_user_id} already used promocode {code}")
+    else:
+        logger.warning(f"⚠️ Promocode {code} validated but user not authenticated")
 
     return {
         "valid": True,
