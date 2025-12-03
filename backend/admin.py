@@ -1701,6 +1701,16 @@ async def admin_dashboard(request: Request):
             .chat-message { padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #ff6b9d; }
             .user-message { background: rgba(255, 107, 157, 0.1); margin-left: 20px; border-left: 3px solid #ff6b9d; }
             .admin-message { background: rgba(255, 107, 157, 0.2); margin-right: 20px; border-right: 3px solid #ff8fab; }
+            .new-user-message {
+                border-left: 4px solid #ffd700 !important;
+                background: rgba(255, 215, 0, 0.15) !important;
+                box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+                animation: pulse-glow 2s infinite;
+            }
+            @keyframes pulse-glow {
+                0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); }
+                50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+            }
             .message-sender { font-weight: bold; margin-bottom: 8px; color: #ff6b9d; }
             .back-btn { background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 20px; transition: all 0.3s ease; }
             .back-btn:hover { background: #5a6268; transform: translateY(-2px); }
@@ -2300,16 +2310,27 @@ async def admin_dashboard(request: Request):
                         const unreadBadge = chat.unread_count > 0
                             ? `<span class="unread-badge">${chat.unread_count} new</span>`
                             : '';
-                        const userIdLabel = chat.telegram_user_id
-                            ? `<p><strong>User:</strong> ${chat.telegram_user_id}</p>`
-                            : '';
+
+                        // Display username instead of telegram_user_id
+                        let userLabel = '';
+                        if (chat.user_username) {
+                            userLabel = `<p><strong>User:</strong> @${chat.user_username}</p>`;
+                        } else if (chat.user_first_name) {
+                            const fullName = chat.user_last_name
+                                ? `${chat.user_first_name} ${chat.user_last_name}`
+                                : chat.user_first_name;
+                            userLabel = `<p><strong>User:</strong> ${fullName}</p>`;
+                        } else if (chat.telegram_user_id) {
+                            userLabel = `<p><strong>User:</strong> ${chat.telegram_user_id}</p>`;
+                        }
+
                         chatDiv.innerHTML = `
                             <div class="profile-header">
                                 <span class="profile-id">Chat #${chat.id}</span>
                                 <span class="profile-name">${chat.profile_name}</span>
                                 ${unreadBadge}
                             </div>
-                            ${userIdLabel}
+                            ${userLabel}
                             <p><strong>Created:</strong> ${new Date(chat.created_at).toLocaleString()}</p>
                             <button class="btn btn-primary" onclick="openChat(${chat.id}, ${chat.profile_id})">
                                 Open Chat
@@ -2326,12 +2347,21 @@ async def admin_dashboard(request: Request):
             async function openChat(chatId, profileId) {
                 currentChatId = chatId;  // Store for replies
                 try {
+                    // Fetch messages
                     const response = await authFetch(`/api/admin/chats/${profileId}/messages?chat_id=${chatId}`);
                     const messages = await response.json();
+
+                    // Fetch chat data to get user info
+                    const chatsResponse = await authFetch('/api/admin/chats');
+                    const chatsData = await chatsResponse.json();
+                    const currentChat = chatsData.chats.find(c => c.id === chatId);
 
                     const list = document.getElementById('chats-list');
 
                     let messagesHtml = '';
+                    // Count new user messages for notification
+                    const newUserMessageCount = messages.messages.filter(m => m.is_from_user && !m.is_system).length;
+
                     messages.messages.forEach(msg => {
                         if (msg.is_system) {
                             // Системное сообщение
@@ -2342,11 +2372,12 @@ async def admin_dashboard(request: Request):
                             `;
                         } else if (msg.file_url) {
                             // Сообщение с файлом
+                            const newMessageClass = msg.is_from_user ? 'new-user-message' : '';
                             if (msg.file_type === 'image') {
                                 messagesHtml += `
-                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
+                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
                                         <div class="message-sender">
-                                            ${msg.is_from_user ? 'User' : 'Admin'}:
+                                            ${msg.is_from_user ? '👤 User' : 'Admin'}:
                                         </div>
                                         <div class="chat-attachment">
                                             <img src="http://localhost:8002${msg.file_url}" alt="Image" class="attachment-preview">
@@ -2361,9 +2392,9 @@ async def admin_dashboard(request: Request):
                                 `;
                             } else if (msg.file_type === 'video') {
                                 messagesHtml += `
-                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
+                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
                                         <div class="message-sender">
-                                            ${msg.is_from_user ? 'User' : 'Admin'}:
+                                            ${msg.is_from_user ? '👤 User' : 'Admin'}:
                                         </div>
                                         <div class="chat-attachment">
                                             <video controls class="attachment-preview">
@@ -2381,9 +2412,9 @@ async def admin_dashboard(request: Request):
                                 `;
                             } else {
                                 messagesHtml += `
-                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
+                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
                                         <div class="message-sender">
-                                            ${msg.is_from_user ? 'User' : 'Admin'}:
+                                            ${msg.is_from_user ? '👤 User' : 'Admin'}:
                                         </div>
                                         <div class="file-message">
                                             <strong>File: ${msg.file_name}</strong>
@@ -2398,10 +2429,11 @@ async def admin_dashboard(request: Request):
                             }
                         } else {
                             // Текстовое сообщение
+                            const newMessageClass = msg.is_from_user ? 'new-user-message' : '';
                             messagesHtml += `
-                                <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
+                                <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
                                     <div class="message-sender">
-                                        ${msg.is_from_user ? 'User' : 'Admin'}:
+                                        ${msg.is_from_user ? '👤 User' : 'Admin'}:
                                     </div>
                                     <div>${msg.text}</div>
                                     <small style="color: #ff6b9d; font-size: 12px;">
@@ -2412,10 +2444,34 @@ async def admin_dashboard(request: Request):
                         }
                     });
 
+                    // Build user info display
+                    let userInfoHtml = '';
+                    if (currentChat) {
+                        if (currentChat.user_username) {
+                            userInfoHtml = `<p><strong>User:</strong> @${currentChat.user_username}</p>`;
+                        } else if (currentChat.user_first_name) {
+                            const fullName = currentChat.user_last_name
+                                ? `${currentChat.user_first_name} ${currentChat.user_last_name}`
+                                : currentChat.user_first_name;
+                            userInfoHtml = `<p><strong>User:</strong> ${fullName}</p>`;
+                        } else if (currentChat.telegram_user_id) {
+                            userInfoHtml = `<p><strong>User:</strong> ${currentChat.telegram_user_id}</p>`;
+                        }
+                    }
+
+                    const newMsgNotification = newUserMessageCount > 0
+                        ? `<span class="unread-badge">${newUserMessageCount} new message${newUserMessageCount > 1 ? 's' : ''}</span>`
+                        : '';
+
                     list.innerHTML = `
                         <button class="back-btn" onclick="loadChats()">Back to chats</button>
                         <div class="profile-card">
-                            <h3>Chat #${chatId}</h3>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3>Chat #${chatId}</h3>
+                                ${newMsgNotification}
+                            </div>
+                            ${userInfoHtml}
+                            <p><strong>Created:</strong> ${currentChat ? new Date(currentChat.created_at).toLocaleString() : 'N/A'}</p>
                             <div style="margin: 15px 0;">
                                 <button class="btn btn-system" onclick="sendSystemMessage(${chatId}, ${profileId})">
                                     Send Transaction Success Message
@@ -3367,6 +3423,15 @@ async def get_admin_chats(current_user: str = Depends(get_current_user)):
 
         chat_copy = chat.copy()
         chat_copy["unread_count"] = unread_count
+
+        # Get user information from database
+        if chat.get("telegram_user_id"):
+            user_data = db.get_user_by_telegram_id(int(chat["telegram_user_id"]))
+            if user_data:
+                chat_copy["user_username"] = user_data.get("username", "")
+                chat_copy["user_first_name"] = user_data.get("first_name", "")
+                chat_copy["user_last_name"] = user_data.get("last_name", "")
+
         chats_with_unread.append(chat_copy)
 
     return {"chats": chats_with_unread}
