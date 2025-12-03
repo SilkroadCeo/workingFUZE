@@ -1653,6 +1653,23 @@ async def admin_dashboard(request: Request):
             .profile-id { background: #ff6b9d; color: white; padding: 5px 10px; border-radius: 8px; font-weight: 600; font-size: 14px; }
             .profile-name { font-size: 18px; font-weight: 700; color: #ff6b9d; }
             .unread-badge { background: #28a745; color: white; padding: 5px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-left: auto; animation: pulse 2s infinite; }
+            .unread-badge-button {
+                position: absolute;
+                top: -8px;
+                right: -8px;
+                background: #dc3545;
+                color: white;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 700;
+                animation: pulse 2s infinite;
+                box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+            }
             @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
             .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; margin: 5px 2px; font-size: 14px; font-weight: 600; transition: all 0.3s ease; }
@@ -2307,9 +2324,6 @@ async def admin_dashboard(request: Request):
                     data.chats.forEach(chat => {
                         const chatDiv = document.createElement('div');
                         chatDiv.className = 'profile-card';
-                        const unreadBadge = chat.unread_count > 0
-                            ? `<span class="unread-badge">${chat.unread_count} new</span>`
-                            : '';
 
                         // Display username instead of telegram_user_id
                         let userLabel = '';
@@ -2324,16 +2338,21 @@ async def admin_dashboard(request: Request):
                             userLabel = `<p><strong>User:</strong> ${chat.telegram_user_id}</p>`;
                         }
 
+                        // Notification badge for Open Chat button
+                        const buttonBadge = chat.unread_count > 0
+                            ? `<span class="unread-badge-button">${chat.unread_count}</span>`
+                            : '';
+
                         chatDiv.innerHTML = `
                             <div class="profile-header">
                                 <span class="profile-id">Chat #${chat.id}</span>
                                 <span class="profile-name">${chat.profile_name}</span>
-                                ${unreadBadge}
                             </div>
                             ${userLabel}
                             <p><strong>Created:</strong> ${new Date(chat.created_at).toLocaleString()}</p>
-                            <button class="btn btn-primary" onclick="openChat(${chat.id}, ${chat.profile_id})">
+                            <button class="btn btn-primary" onclick="openChat(${chat.id}, ${chat.profile_id})" style="position: relative;">
                                 Open Chat
+                                ${buttonBadge}
                             </button>
                         `;
                         list.appendChild(chatDiv);
@@ -2347,6 +2366,12 @@ async def admin_dashboard(request: Request):
             async function openChat(chatId, profileId) {
                 currentChatId = chatId;  // Store for replies
                 try {
+                    // Mark messages as read
+                    await authFetch(`/api/admin/chats/${chatId}/mark-read`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+
                     // Fetch messages
                     const response = await authFetch(`/api/admin/chats/${profileId}/messages?chat_id=${chatId}`);
                     const messages = await response.json();
@@ -2359,8 +2384,6 @@ async def admin_dashboard(request: Request):
                     const list = document.getElementById('chats-list');
 
                     let messagesHtml = '';
-                    // Count new user messages for notification
-                    const newUserMessageCount = messages.messages.filter(m => m.is_from_user && !m.is_system).length;
 
                     messages.messages.forEach(msg => {
                         if (msg.is_system) {
@@ -2372,12 +2395,11 @@ async def admin_dashboard(request: Request):
                             `;
                         } else if (msg.file_url) {
                             // Сообщение с файлом
-                            const newMessageClass = msg.is_from_user ? 'new-user-message' : '';
                             if (msg.file_type === 'image') {
                                 messagesHtml += `
-                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
+                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
                                         <div class="message-sender">
-                                            ${msg.is_from_user ? '👤 User' : 'Admin'}:
+                                            ${msg.is_from_user ? 'User' : 'Admin'}:
                                         </div>
                                         <div class="chat-attachment">
                                             <img src="http://localhost:8002${msg.file_url}" alt="Image" class="attachment-preview">
@@ -2392,9 +2414,9 @@ async def admin_dashboard(request: Request):
                                 `;
                             } else if (msg.file_type === 'video') {
                                 messagesHtml += `
-                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
+                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
                                         <div class="message-sender">
-                                            ${msg.is_from_user ? '👤 User' : 'Admin'}:
+                                            ${msg.is_from_user ? 'User' : 'Admin'}:
                                         </div>
                                         <div class="chat-attachment">
                                             <video controls class="attachment-preview">
@@ -2412,9 +2434,9 @@ async def admin_dashboard(request: Request):
                                 `;
                             } else {
                                 messagesHtml += `
-                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
+                                    <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
                                         <div class="message-sender">
-                                            ${msg.is_from_user ? '👤 User' : 'Admin'}:
+                                            ${msg.is_from_user ? 'User' : 'Admin'}:
                                         </div>
                                         <div class="file-message">
                                             <strong>File: ${msg.file_name}</strong>
@@ -2429,11 +2451,10 @@ async def admin_dashboard(request: Request):
                             }
                         } else {
                             // Текстовое сообщение
-                            const newMessageClass = msg.is_from_user ? 'new-user-message' : '';
                             messagesHtml += `
-                                <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'} ${newMessageClass}">
+                                <div class="chat-message ${msg.is_from_user ? 'user-message' : 'admin-message'}">
                                     <div class="message-sender">
-                                        ${msg.is_from_user ? '👤 User' : 'Admin'}:
+                                        ${msg.is_from_user ? 'User' : 'Admin'}:
                                     </div>
                                     <div>${msg.text}</div>
                                     <small style="color: #ff6b9d; font-size: 12px;">
@@ -2459,17 +2480,10 @@ async def admin_dashboard(request: Request):
                         }
                     }
 
-                    const newMsgNotification = newUserMessageCount > 0
-                        ? `<span class="unread-badge">${newUserMessageCount} new message${newUserMessageCount > 1 ? 's' : ''}</span>`
-                        : '';
-
                     list.innerHTML = `
                         <button class="back-btn" onclick="loadChats()">Back to chats</button>
                         <div class="profile-card">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <h3>Chat #${chatId}</h3>
-                                ${newMsgNotification}
-                            </div>
+                            <h3>Chat #${chatId}</h3>
                             ${userInfoHtml}
                             <p><strong>Created:</strong> ${currentChat ? new Date(currentChat.created_at).toLocaleString() : 'N/A'}</p>
                             <div style="margin: 15px 0;">
@@ -3417,15 +3431,17 @@ async def get_admin_chats(current_user: str = Depends(get_current_user)):
     # Добавляем счетчик непрочитанных сообщений для каждого чата
     chats_with_unread = []
     for chat in data["chats"]:
-        # Считаем сообщения от пользователя (непрочитанные админом)
+        # Считаем только НЕПРОЧИТАННЫЕ сообщения от пользователя
         unread_count = sum(1 for m in data["messages"]
-                          if m["chat_id"] == chat["id"] and m.get("is_from_user", False))
+                          if m["chat_id"] == chat["id"]
+                          and m.get("is_from_user", False)
+                          and not m.get("is_read", False))
 
         chat_copy = chat.copy()
         chat_copy["unread_count"] = unread_count
 
-        # Get user information from database
-        if chat.get("telegram_user_id"):
+        # Use stored username from chat, or fetch from database for old chats
+        if not chat.get("user_username") and chat.get("telegram_user_id"):
             user_data = db.get_user_by_telegram_id(int(chat["telegram_user_id"]))
             if user_data:
                 chat_copy["user_username"] = user_data.get("username", "")
@@ -3895,6 +3911,20 @@ async def send_system_message(profile_id: int, message_data: dict, current_user:
     save_data(data)
 
     return {"status": "sent", "message_id": system_message["id"]}
+
+
+@app.post("/api/admin/chats/{chat_id}/mark-read")
+async def mark_chat_messages_read(chat_id: int, current_user: str = Depends(get_current_user)):
+    """Пометить все сообщения в чате как прочитанные"""
+    data = load_data()
+
+    # Найти все сообщения от пользователя в этом чате и пометить как прочитанные
+    for message in data["messages"]:
+        if message["chat_id"] == chat_id and message.get("is_from_user", False):
+            message["is_read"] = True
+
+    save_data(data)
+    return {"status": "marked_read"}
 
 
 # Комментарии API для админки

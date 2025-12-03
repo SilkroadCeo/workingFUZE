@@ -965,7 +965,10 @@ async def send_message(
                 "profile_id": profile_id,
                 "profile_name": profile["name"],
                 "created_at": datetime.now().isoformat(),
-                "telegram_user_id": actual_telegram_user_id
+                "telegram_user_id": actual_telegram_user_id,
+                "user_username": user.get("username", ""),
+                "user_first_name": user.get("first_name", ""),
+                "user_last_name": user.get("last_name", "")
             }
             data["chats"].append(chat)
 
