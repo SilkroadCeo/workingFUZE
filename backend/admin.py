@@ -324,6 +324,14 @@ class ChatMessageModel(BaseModel):
         return bleach.clean(v, tags=allowed_tags, strip=True)
 
 
+class BannerModel(BaseModel):
+    """Validation model for banner settings"""
+    text: str = Field(default="", max_length=500)
+    link: str = Field(default="", max_length=500)
+    link_text: str = Field(default="", max_length=100)
+    visible: bool = Field(default=False)
+
+
 async def send_telegram_notification(message: str, profile_id: int = None, profile_name: str = None, message_text: str = None, file_url: str = None, telegram_user_id: str = None):
     """
     Отправка уведомления администратору в Telegram
@@ -1731,6 +1739,8 @@ async def admin_dashboard(request: Request):
             .comment-management-item { background: rgba(255, 107, 157, 0.05); padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid rgba(255, 107, 157, 0.2); }
             .comment-management-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
             .comment-profile { font-weight: 600; color: #ff6b9d; }
+            .comment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+            .comment-promo { background: #28a745; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
 
             .vip-catalogs-settings { background: rgba(255, 107, 157, 0.1); padding: 20px; border-radius: 15px; border: 1px solid #ff6b9d; margin-bottom: 20px; }
             .catalog-item { background: rgba(255, 107, 157, 0.05); padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255, 107, 157, 0.2); }
@@ -2568,13 +2578,16 @@ async def admin_dashboard(request: Request):
                     data.comments.forEach(comment => {
                         const commentDiv = document.createElement('div');
                         commentDiv.className = 'comment-management-item';
+                        const promoCodeHtml = comment.promo_code ? `<span class="comment-promo">Promo: ${comment.promo_code}</span>` : '';
+                        const telegramUsernameHtml = comment.telegram_username ? `(@${comment.telegram_username})` : '';
                         commentDiv.innerHTML = `
                             <div class="comment-management-header">
                                 <span class="comment-profile">Profile ID: ${comment.profile_id}</span>
                                 <span class="comment-date">${new Date(comment.created_at).toLocaleString()}</span>
                             </div>
                             <div class="comment-header">
-                                <span class="comment-author">${comment.user_name}</span>
+                                <span class="comment-author">${comment.user_name} ${telegramUsernameHtml}</span>
+                                ${promoCodeHtml}
                             </div>
                             <div class="comment-text">${comment.text}</div>
                             <div class="comment-actions">
@@ -3960,11 +3973,11 @@ async def get_admin_banner(current_user: str = Depends(get_current_user)):
 
 
 @app.post("/api/admin/banner")
-async def update_admin_banner(banner: dict, current_user: str = Depends(get_current_user)):
+async def update_admin_banner(banner: BannerModel, current_user: str = Depends(get_current_user)):
     data = load_data()
     if "settings" not in data:
         data["settings"] = {}
-    data["settings"]["banner"] = banner
+    data["settings"]["banner"] = banner.dict()
     save_data(data)
     return {"status": "updated"}
 
