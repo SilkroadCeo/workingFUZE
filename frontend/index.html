@@ -4927,6 +4927,7 @@
                 const response = await fetch('/api/promocodes/validate', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',  // Отправляем cookies для авторизации
                     body: JSON.stringify({ code: code })
                 });
 
