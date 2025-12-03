@@ -1286,7 +1286,7 @@ async def get_promocodes():
     return {"promocodes": data.get("promocodes", [])}
 
 @app.post("/api/promocodes/validate")
-async def validate_promocode(validation: dict):
+async def validate_promocode(validation: dict, user: Optional[dict] = Depends(get_telegram_user_optional)):
     """Проверить промокод"""
     data = load_data()
     code = validation["code"].upper()
@@ -1298,6 +1298,24 @@ async def validate_promocode(validation: dict):
 
     if not promocode["is_active"]:
         return {"valid": False, "message": "Promocode is inactive"}
+
+    # Save user info when promocode is used
+    if user:
+        telegram_user_id = user.get("telegram_id")
+        if "used_by" not in promocode:
+            promocode["used_by"] = []
+
+        # Check if user already used this promocode
+        if not any(u.get("telegram_user_id") == telegram_user_id for u in promocode["used_by"]):
+            usage_info = {
+                "telegram_user_id": telegram_user_id,
+                "username": user.get("username", ""),
+                "first_name": user.get("first_name", ""),
+                "last_name": user.get("last_name", ""),
+                "used_at": datetime.now().isoformat()
+            }
+            promocode["used_by"].append(usage_info)
+            save_data(data)
 
     return {
         "valid": True,

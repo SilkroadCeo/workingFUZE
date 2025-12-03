@@ -2372,6 +2372,9 @@ async def admin_dashboard(request: Request):
                         headers: {'Content-Type': 'application/json'}
                     });
 
+                    // Update stats to refresh badge on Chats button
+                    loadStats();
+
                     // Fetch messages
                     const response = await authFetch(`/api/admin/chats/${profileId}/messages?chat_id=${chatId}`);
                     const messages = await response.json();
@@ -2705,33 +2708,31 @@ async def admin_dashboard(request: Request):
                     list.innerHTML = '';
 
                     data.promocodes.forEach(promo => {
-                        // Генерация таблицы активаций - УДАЛЕНО
-                        // let activationsTable = '';
-                        // if (promo.used_by && promo.used_by.length > 0) {
-                        //     activationsTable = `
-                        //         <div style="margin-top: 15px;">
-                        //             <h4 style="color: #ff6b9d; margin-bottom: 10px;">Активации (${promo.used_by.length}):</h4>
-                        //             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                        //                 <thead>
-                        //                     <tr style="background: rgba(255, 107, 157, 0.2);">
-                        //                         <th style="padding: 8px; text-align: left; border: 1px solid #ff6b9d;">Дата</th>
-                        //                         <th style="padding: 8px; text-align: left; border: 1px solid #ff6b9d;">Код</th>
-                        //                         <th style="padding: 8px; text-align: left; border: 1px solid #ff6b9d;">Скидка</th>
-                        //                     </tr>
-                        //                 </thead>
-                        //                 <tbody>
-                        //                     ${promo.used_by.map(usage => `
-                        //                         <tr style="background: rgba(255, 107, 157, 0.05);">
-                        //                             <td style="padding: 8px; border: 1px solid #ff6b9d;">${new Date(usage.date || usage.created_at || Date.now()).toLocaleString()}</td>
-                        //                             <td style="padding: 8px; border: 1px solid #ff6b9d;">${promo.code}</td>
-                        //                             <td style="padding: 8px; border: 1px solid #ff6b9d;">${promo.discount}%</td>
-                        //                         </tr>
-                        //                     `).join('')}
-                        //                 </tbody>
-                        //             </table>
-                        //         </div>
-                        //     `;
-                        // }
+                        // Генерация списка пользователей
+                        let usersListHtml = '';
+                        if (promo.used_by && promo.used_by.length > 0) {
+                            usersListHtml = `
+                                <div style="margin-top: 15px; padding: 15px; background: rgba(255, 107, 157, 0.05); border-radius: 10px;">
+                                    <h4 style="color: #ff6b9d; margin-bottom: 10px;">Users who activated (${promo.used_by.length}):</h4>
+                                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                                        ${promo.used_by.map(usage => {
+                                            const displayName = usage.username
+                                                ? `@${usage.username}`
+                                                : (usage.first_name
+                                                    ? `${usage.first_name}${usage.last_name ? ' ' + usage.last_name : ''}`
+                                                    : `User ${usage.telegram_user_id}`);
+                                            const usedDate = usage.used_at ? new Date(usage.used_at).toLocaleString() : 'N/A';
+                                            return `
+                                                <div style="padding: 10px; background: rgba(255, 107, 157, 0.1); border-radius: 8px; border: 1px solid rgba(255, 107, 157, 0.3);">
+                                                    <div style="font-weight: 600; color: #ff6b9d; margin-bottom: 5px;">${displayName}</div>
+                                                    <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">Used: ${usedDate}</div>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }
 
                         const promoDiv = document.createElement('div');
                         promoDiv.className = 'promocode-card';
@@ -2747,6 +2748,7 @@ async def admin_dashboard(request: Request):
                                 </span>
                             </p>
                             <p><strong>Used:</strong> ${promo.used_by ? promo.used_by.length : 0} times</p>
+                            ${usersListHtml}
                             <div style="margin-top: 15px;">
                                 <button class="btn btn-warning" onclick="togglePromocode(${promo.id}, ${!promo.is_active})">
                                     ${promo.is_active ? 'Deactivate' : 'Activate'}
@@ -3310,9 +3312,9 @@ async def admin_dashboard(request: Request):
 async def get_stats(current_user: str = Depends(get_current_user)):
     data = load_data()
 
-    # Подсчет непрочитанных сообщений (сообщения от пользователей)
+    # Подсчет непрочитанных сообщений (только НЕПРОЧИТАННЫЕ сообщения от пользователей)
     unread_count = sum(1 for m in data.get("messages", [])
-                      if m.get("is_from_user", False))
+                      if m.get("is_from_user", False) and not m.get("is_read", False))
 
     return {
         "profiles_count": len(data["profiles"]),
