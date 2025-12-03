@@ -1291,16 +1291,29 @@ async def validate_promocode(validation: dict, request: Request, user: Optional[
     data = load_data()
     code = validation["code"].upper()
 
-    # Debug logging
+    # Debug with print (will always show in console)
     session_id = request.cookies.get("telegram_session")
+    print(f"\n{'='*60}")
+    print(f"🔍 PROMOCODE VALIDATION DEBUG")
+    print(f"Code: {code}")
+    print(f"Session ID: {session_id}")
+    print(f"User: {user}")
+    if user:
+        print(f"User telegram_id: {user.get('telegram_id')}")
+    else:
+        print(f"❌ USER NOT AUTHENTICATED - No cookies or invalid session")
+    print(f"{'='*60}\n")
+
     logger.info(f"🔍 Promocode validation - Session ID: {session_id}, User: {user.get('telegram_id') if user else 'None'}")
 
     promocode = next((p for p in data["promocodes"] if p["code"] == code), None)
 
     if not promocode:
+        print(f"❌ Promocode {code} not found")
         return {"valid": False, "message": "Promocode not found"}
 
     if not promocode["is_active"]:
+        print(f"❌ Promocode {code} is inactive")
         return {"valid": False, "message": "Promocode is inactive"}
 
     # Save user info when promocode is used
@@ -1320,10 +1333,13 @@ async def validate_promocode(validation: dict, request: Request, user: Optional[
             }
             promocode["used_by"].append(usage_info)
             save_data(data)
+            print(f"✅ SUCCESS: Saved user {telegram_user_id} (@{user.get('username', 'N/A')})")
             logger.info(f"✅ Promocode {code} used by user {telegram_user_id} (@{user.get('username', 'N/A')})")
         else:
+            print(f"ℹ️ User {telegram_user_id} already used this promocode")
             logger.info(f"ℹ️ User {telegram_user_id} already used promocode {code}")
     else:
+        print(f"⚠️ WARNING: User not authenticated - promocode validated but not tracked")
         logger.warning(f"⚠️ Promocode {code} validated but user not authenticated")
 
     return {
