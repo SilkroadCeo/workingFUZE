@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 import database as db  # Using unified database instead of data.json
 import time
 import threading
+import requests
 
 # Определяем current_dir сразу и загружаем .env из backend (чтобы load_dotenv точно нашёл файл)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +64,9 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 if not TELEGRAM_BOT_TOKEN:
     TELEGRAM_BOT_TOKEN = "8082508231:AAH7t5hMSczHjLEmIDmZR2L5aOiNELejiEk"
     logger.warning("⚠️ Using hardcoded TELEGRAM_BOT_TOKEN (fallback from .env)")
+
+# Admin Chat ID for notifications
+TELEGRAM_ADMIN_CHAT_ID = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "")
 
 # Флаг для локальной разработки (если DEV=1 — не ставим secure cookie)
 _is_dev = os.getenv("DEV", "0").lower() in ("1", "true", "yes")
@@ -648,6 +652,69 @@ def get_file_type(filename: str) -> str:
     else:
         return 'file'
 
+# Отправка уведомлений в Telegram
+def send_telegram_notification(user_info: dict, profile_info: dict, message_text: str, has_file: bool = False):
+    """
+    Отправляет уведомление в Telegram бот о новом сообщении от пользователя
+
+    Args:
+        user_info: Информация о пользователе (username, first_name, last_name, telegram_id)
+        profile_info: Информация о профиле (name, age, id)
+        message_text: Текст сообщения
+        has_file: Есть ли прикрепленный файл
+    """
+    try:
+        # Проверяем наличие необходимых настроек
+        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_ADMIN_CHAT_ID:
+            logger.warning("⚠️ Telegram notifications not configured (missing BOT_TOKEN or ADMIN_CHAT_ID)")
+            return
+
+        # Формируем отображаемое имя пользователя
+        if user_info.get("username"):
+            user_display = f"@{user_info['username']}"
+        elif user_info.get("first_name"):
+            full_name = user_info["first_name"]
+            if user_info.get("last_name"):
+                full_name += f" {user_info['last_name']}"
+            user_display = full_name
+        else:
+            user_display = f"User {user_info.get('telegram_id', 'Unknown')}"
+
+        # Формируем текст уведомления
+        notification_text = (
+            f"🔔 <b>Новое сообщение от пользователя</b>\n\n"
+            f"👤 <b>Пользователь:</b> {user_display}\n"
+            f"📱 <b>Telegram ID:</b> <code>{user_info.get('telegram_id', 'N/A')}</code>\n\n"
+            f"💁 <b>Профиль:</b> {profile_info['name']}, {profile_info['age']} лет\n"
+            f"🆔 <b>ID профиля:</b> #{profile_info['id']}\n\n"
+        )
+
+        if has_file:
+            notification_text += "📎 <b>Прикрепленный файл:</b> Да\n"
+
+        if message_text:
+            notification_text += f"💬 <b>Сообщение:</b>\n{message_text}"
+        else:
+            notification_text += "💬 <b>Сообщение:</b> (только файл)"
+
+        # Отправляем сообщение через Telegram Bot API
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": TELEGRAM_ADMIN_CHAT_ID,
+            "text": notification_text,
+            "parse_mode": "HTML"
+        }
+
+        response = requests.post(url, json=payload, timeout=5)
+
+        if response.status_code == 200:
+            logger.info(f"✅ Telegram notification sent for user {user_display}")
+        else:
+            logger.error(f"❌ Failed to send Telegram notification: {response.status_code} - {response.text}")
+
+    except Exception as e:
+        logger.error(f"❌ Error sending Telegram notification: {e}")
+
 # API endpoints
 @app.get("/")
 async def main():
@@ -998,6 +1065,24 @@ async def send_message(
         data["messages"].append(message_data)
         save_data(data)
         logger.info(f"✅ Message sent: chat_id={chat['id']}, user_id={actual_telegram_user_id}, has_file={bool(file and hasattr(file, 'filename'))}")
+
+        # Отправляем уведомление в Telegram
+        send_telegram_notification(
+            user_info={
+                "username": user.get("username", ""),
+                "first_name": user.get("first_name", ""),
+                "last_name": user.get("last_name", ""),
+                "telegram_id": actual_telegram_user_id
+            },
+            profile_info={
+                "name": profile["name"],
+                "age": profile.get("age", "N/A"),
+                "id": profile_id
+            },
+            message_text=text or "",
+            has_file=bool(file and hasattr(file, 'filename') and file.filename)
+        )
+
         return {"status": "sent", "message_id": message_data["id"]}
     
     except HTTPException:
