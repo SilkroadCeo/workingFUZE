@@ -3357,7 +3357,7 @@ async def create_profile(
     photo_urls = []
     for photo in photos:
         if photo.filename:
-            photo_url = save_uploaded_file(photo)
+            photo_url, _, _, _ = save_uploaded_file(photo)
             if photo_url:
                 photo_urls.append(photo_url)
 
@@ -3536,7 +3536,7 @@ async def send_admin_reply(
         if files and any(hasattr(f, 'filename') and f.filename for f in files):
             for file in files:
                 if hasattr(file, 'filename') and file.filename:
-                    file_url = save_uploaded_file(file)
+                    file_url, _, _, _ = save_uploaded_file(file)
                     if file_url:
                         file_type = get_file_type(file.filename)
 
@@ -3716,7 +3716,7 @@ async def send_user_message(profile_id: int, request: Request, telegram_user_id:
 
         # Обрабатываем файл
         if file and hasattr(file, 'filename') and file.filename:
-            file_url = save_uploaded_file(file)
+            file_url, _, _, _ = save_uploaded_file(file)
             if file_url:
                 file_type = get_file_type(file.filename)
 
@@ -4122,7 +4122,7 @@ async def create_vip_profile(
     photo_urls = []
     for photo in photos:
         if photo.filename:
-            photo_url = save_uploaded_file(photo)
+            photo_url, _, _, _ = save_uploaded_file(photo)
             if photo_url:
                 photo_urls.append(photo_url)
 
