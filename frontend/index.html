@@ -475,66 +475,6 @@
             font-weight: 400;
         }
 
-        /* Иконка незавершенной оплаты */
-        .pending-payment-icon {
-            position: fixed;
-            bottom: 70px;
-            left: 15px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border-radius: 50%;
-            width: 55px;
-            height: 55px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 1001;
-            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.5);
-            transition: all 0.3s ease;
-            animation: pulse 2s infinite;
-        }
-
-        .pending-payment-icon:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 25px rgba(255, 107, 157, 0.7);
-        }
-
-        .pending-payment-icon svg {
-            color: white;
-        }
-
-        .notification-badge {
-            position: absolute;
-            top: -2px;
-            right: -2px;
-            background: var(--error);
-            border-radius: 50%;
-            width: 8px;
-            height: 8px;
-            border: 2px solid var(--background);
-            animation: pulse-dot 2s infinite;
-        }
-
-        @keyframes pulse-dot {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            50% {
-                transform: scale(1.2);
-                opacity: 0.8;
-            }
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                box-shadow: 0 4px 15px rgba(255, 107, 157, 0.5);
-            }
-            50% {
-                box-shadow: 0 4px 25px rgba(255, 107, 157, 0.8);
-            }
-        }
-
         .header-stats {
             display: flex;
             justify-content: center;
@@ -2172,14 +2112,6 @@
                 <div class="logo">Fuze</div>
                 <div class="subtitle" id="app-subtitle">100% Anonymous Dating</div>
 
-                <!-- Иконка незавершенной оплаты -->
-                <div class="pending-payment-icon" id="pending-payment-icon" style="display: none;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-                        <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    <span class="notification-badge"></span>
-                </div>
                 <div class="header-stats">
                     <div class="stat-item">
                         <span class="stat-number" id="profiles-count">0</span>
@@ -3885,12 +3817,6 @@
             // Загружаем незавершенные платежи если есть
             loadPendingPayments();
 
-            // Обработчик клика на иконку незавершенных платежей - переходим в раздел Pending
-            const pendingPaymentIcon = document.getElementById('pending-payment-icon');
-            if (pendingPaymentIcon) {
-                pendingPaymentIcon.addEventListener('click', () => switchPage('unpaid'));
-            }
-
             // Сразу скрываем экран загрузки и показываем контент
             setTimeout(() => {
                 loadingScreen.style.opacity = '0';
@@ -5391,12 +5317,6 @@
 
         function updatePendingPaymentBadges() {
             const count = pendingPayments.length;
-
-            // Обновляем иконку в хедере (красная точка)
-            const icon = document.getElementById('pending-payment-icon');
-            if (icon) {
-                icon.style.display = count > 0 ? 'flex' : 'none';
-            }
 
             // Обновляем badge в навигации
             const navBadge = document.getElementById('unpaid-badge');
