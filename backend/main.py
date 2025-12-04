@@ -652,10 +652,11 @@ def get_file_type(filename: str) -> str:
     else:
         return 'file'
 
-# Отправка уведомлений в Telegram
-def send_telegram_notification(user_info: dict, profile_info: dict, message_text: str, has_file: bool = False):
+# Отправка уведомлений в Telegram (асинхронно)
+async def send_telegram_notification_async(user_info: dict, profile_info: dict, message_text: str, has_file: bool = False):
     """
-    Отправляет уведомление в Telegram бот о новом сообщении от пользователя
+    Асинхронная отправка уведомления в Telegram бот о новом сообщении от пользователя
+    Выполняется в фоновом режиме, не блокирует основной запрос
 
     Args:
         user_info: Информация о пользователе (username, first_name, last_name, telegram_id)
@@ -666,7 +667,7 @@ def send_telegram_notification(user_info: dict, profile_info: dict, message_text
     try:
         # Проверяем наличие необходимых настроек
         if not TELEGRAM_BOT_TOKEN or not TELEGRAM_ADMIN_CHAT_ID:
-            logger.warning("⚠️ Telegram notifications not configured (missing BOT_TOKEN or ADMIN_CHAT_ID)")
+            logger.debug("⚠️ Telegram notifications not configured (missing BOT_TOKEN or ADMIN_CHAT_ID)")
             return
 
         # Формируем отображаемое имя пользователя
@@ -697,7 +698,7 @@ def send_telegram_notification(user_info: dict, profile_info: dict, message_text
         else:
             notification_text += "💬 <b>Сообщение:</b> (только файл)"
 
-        # Отправляем сообщение через Telegram Bot API
+        # Отправляем сообщение через Telegram Bot API асинхронно
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         payload = {
             "chat_id": TELEGRAM_ADMIN_CHAT_ID,
@@ -705,7 +706,12 @@ def send_telegram_notification(user_info: dict, profile_info: dict, message_text
             "parse_mode": "HTML"
         }
 
-        response = requests.post(url, json=payload, timeout=5)
+        # Используем asyncio для неблокирующего запроса
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: requests.post(url, json=payload, timeout=5)
+        )
 
         if response.status_code == 200:
             logger.info(f"✅ Telegram notification sent for user {user_display}")
@@ -1066,21 +1072,23 @@ async def send_message(
         save_data(data)
         logger.info(f"✅ Message sent: chat_id={chat['id']}, user_id={actual_telegram_user_id}, has_file={bool(file and hasattr(file, 'filename'))}")
 
-        # Отправляем уведомление в Telegram
-        send_telegram_notification(
-            user_info={
-                "username": user.get("username", ""),
-                "first_name": user.get("first_name", ""),
-                "last_name": user.get("last_name", ""),
-                "telegram_id": actual_telegram_user_id
-            },
-            profile_info={
-                "name": profile["name"],
-                "age": profile.get("age", "N/A"),
-                "id": profile_id
-            },
-            message_text=text or "",
-            has_file=bool(file and hasattr(file, 'filename') and file.filename)
+        # Отправляем уведомление в Telegram асинхронно (в фоне, не блокируя ответ)
+        asyncio.create_task(
+            send_telegram_notification_async(
+                user_info={
+                    "username": user.get("username", ""),
+                    "first_name": user.get("first_name", ""),
+                    "last_name": user.get("last_name", ""),
+                    "telegram_id": actual_telegram_user_id
+                },
+                profile_info={
+                    "name": profile["name"],
+                    "age": profile.get("age", "N/A"),
+                    "id": profile_id
+                },
+                message_text=text or "",
+                has_file=bool(file and hasattr(file, 'filename') and file.filename)
+            )
         )
 
         return {"status": "sent", "message_id": message_data["id"]}
