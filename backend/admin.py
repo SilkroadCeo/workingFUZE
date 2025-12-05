@@ -2657,7 +2657,7 @@ async def admin_dashboard(request: Request):
 
             async function loadCommentsAdmin() {
                 try {
-                    const response = await authFetch('/api/profiles');
+                    const response = await authFetch('/api/admin/profiles');
                     const data = await response.json();
                     const list = document.getElementById('profiles-list-comments');
                     list.innerHTML = '<h4 style="margin-bottom: 15px;">Select Profile to Add Comment:</h4>';
