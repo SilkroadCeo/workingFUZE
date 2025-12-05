@@ -5217,14 +5217,14 @@
         }
 
         // Управление незавершенными платежами
-        function savePendingPayment(profile, amount, cryptoType, startTime, paymentId) {
+        function savePendingPayment(profile, amount, cryptoType, startTime, paymentId, endTime = null) {
             const payment = {
                 id: paymentId || generateOrderCode(), // Уникальный ID платежа
                 profile: profile,
                 amount: amount,
                 cryptoType: cryptoType,
                 startTime: startTime,
-                endTime: startTime + (60 * 60 * 1000) // 60 минут
+                endTime: endTime || (startTime + (60 * 60 * 1000)) // Используем переданный endTime или вычисляем (60 минут)
             };
 
             // Добавляем платеж в массив, если его еще нет
@@ -5756,7 +5756,8 @@
                                                     order.amount,
                                                     order.crypto_type,
                                                     createdTime,
-                                                    order.id
+                                                    order.id,
+                                                    expiresTime // Передаем правильное время истечения из backend
                                                 );
                                                 openPendingPayment(order.id);
                                             })
