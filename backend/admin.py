@@ -4034,15 +4034,19 @@ async def confirm_booking_payment(order_id: int, current_user: str = Depends(get
 
     # Отправляем системное сообщение пользователю
     profile_id = order.get("profile_id")
-    if profile_id:
+    telegram_user_id = order.get("telegram_user_id")
+
+    if profile_id and telegram_user_id:
         profile = next((p for p in data["profiles"] if p["id"] == profile_id), None)
         if profile:
-            # Находим или создаем чат
-            chat = next((c for c in data["chats"] if c["profile_id"] == profile_id), None)
+            # Находим или создаем чат для конкретного пользователя
+            chat = next((c for c in data["chats"]
+                        if c["profile_id"] == profile_id and c.get("telegram_user_id") == telegram_user_id), None)
             if not chat:
                 chat = {
                     "id": len(data["chats"]) + 1,
                     "profile_id": profile_id,
+                    "telegram_user_id": telegram_user_id,
                     "profile_name": profile["name"],
                     "created_at": datetime.now().isoformat()
                 }
