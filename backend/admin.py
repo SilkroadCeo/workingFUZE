@@ -1864,7 +1864,24 @@ async def admin_dashboard(request: Request):
             <div id="comments" class="content">
                 <h3>Manage Comments</h3>
                 <div class="comments-management">
-                    <div id="comments-list-admin"></div>
+                    <div id="profiles-list-comments" style="margin-bottom: 20px;"></div>
+                    <div id="add-comment-form" style="display: none; background: rgba(102, 126, 234, 0.05); padding: 20px; border-radius: 10px; margin-top: 20px;">
+                        <h4 id="selected-profile-name" style="margin-bottom: 15px;"></h4>
+                        <div class="form-group">
+                            <label>Author Name:</label>
+                            <input type="text" id="comment-author-name" placeholder="Enter author name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Comment:</label>
+                            <textarea id="comment-text" placeholder="Enter comment" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; min-height: 100px;"></textarea>
+                        </div>
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Rating (1-5):</label>
+                            <input type="number" id="comment-rating" min="1" max="5" value="5" required style="width: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
+                        <button type="button" onclick="saveCommentAdmin()" style="margin-top: 15px; padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer;">Save Comment</button>
+                        <button type="button" onclick="cancelAddComment()" style="margin-top: 15px; margin-left: 10px; padding: 10px 20px; background: #999; color: white; border: none; border-radius: 5px; cursor: pointer;">Cancel</button>
+                    </div>
                 </div>
             </div>
 
@@ -2636,45 +2653,97 @@ async def admin_dashboard(request: Request):
             }
 
             // Управление комментариями
+            let selectedProfileForComment = null;
+
             async function loadCommentsAdmin() {
                 try {
-                    const response = await authFetch('/api/admin/comments');
+                    const response = await authFetch('/api/profiles');
                     const data = await response.json();
-                    const list = document.getElementById('comments-list-admin');
-                    list.innerHTML = '';
+                    const list = document.getElementById('profiles-list-comments');
+                    list.innerHTML = '<h4 style="margin-bottom: 15px;">Select Profile to Add Comment:</h4>';
 
-                    if (data.comments.length === 0) {
-                        list.innerHTML = '<p>No comments yet</p>';
+                    if (!data.profiles || data.profiles.length === 0) {
+                        list.innerHTML += '<p>No profiles available</p>';
                         return;
                     }
 
-                    data.comments.forEach(comment => {
-                        const commentDiv = document.createElement('div');
-                        commentDiv.className = 'comment-management-item';
-                        const promoCodeHtml = comment.promo_code ? `<span class="comment-promo">Promo: ${comment.promo_code}</span>` : '';
-                        const telegramUsernameHtml = comment.telegram_username ? `(@${comment.telegram_username})` : '';
-                        commentDiv.innerHTML = `
-                            <div class="comment-management-header">
-                                <span class="comment-profile">Profile ID: ${comment.profile_id}</span>
-                                <span class="comment-date">${new Date(comment.created_at).toLocaleString()}</span>
-                            </div>
-                            <div class="comment-header">
-                                <span class="comment-author">${comment.user_name} ${telegramUsernameHtml}</span>
-                                ${promoCodeHtml}
-                            </div>
-                            <div class="comment-text">${comment.text}</div>
-                            <div class="comment-actions">
-                                <button class="delete-comment" onclick="deleteComment(${comment.profile_id}, ${comment.id})">
-                                    Delete Comment
+                    data.profiles.forEach(profile => {
+                        const profileCard = document.createElement('div');
+                        profileCard.className = 'profile-card-comment';
+                        profileCard.style.cssText = 'background: white; padding: 15px; margin: 10px 0; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;';
+                        profileCard.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="font-size: 16px;">${profile.name}</strong>
+                                    <span style="color: #666; margin-left: 10px;">ID: ${profile.id}</span>
+                                </div>
+                                <button onclick="openAddCommentForm(${profile.id}, '${profile.name.replace(/'/g, "\\'")}'); event.stopPropagation();"
+                                    style="padding: 8px 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                    Add Comment
                                 </button>
                             </div>
                         `;
-                        list.appendChild(commentDiv);
+                        list.appendChild(profileCard);
                     });
 
                     loadStats();
                 } catch (error) {
-                    console.error('Error loading comments:', error);
+                    console.error('Error loading profiles for comments:', error);
+                }
+            }
+
+            function openAddCommentForm(profileId, profileName) {
+                selectedProfileForComment = profileId;
+                document.getElementById('selected-profile-name').textContent = `Adding comment for: ${profileName}`;
+                document.getElementById('add-comment-form').style.display = 'block';
+                document.getElementById('comment-author-name').value = '';
+                document.getElementById('comment-text').value = '';
+                document.getElementById('comment-rating').value = '5';
+            }
+
+            function cancelAddComment() {
+                selectedProfileForComment = null;
+                document.getElementById('add-comment-form').style.display = 'none';
+            }
+
+            async function saveCommentAdmin() {
+                const authorName = document.getElementById('comment-author-name').value.trim();
+                const commentText = document.getElementById('comment-text').value.trim();
+                const rating = parseInt(document.getElementById('comment-rating').value);
+
+                if (!authorName || !commentText) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+
+                if (!selectedProfileForComment) {
+                    alert('No profile selected');
+                    return;
+                }
+
+                try {
+                    const response = await authFetch('/api/admin/comments/add', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            profile_id: selectedProfileForComment,
+                            author_name: authorName,
+                            comment: commentText,
+                            rating: rating
+                        })
+                    });
+
+                    if (response.ok) {
+                        alert('Comment added successfully!');
+                        cancelAddComment();
+                        loadStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Error adding comment: ' + (error.detail || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Error saving comment:', error);
+                    alert('Error saving comment');
                 }
             }
 
@@ -3934,6 +4003,32 @@ async def mark_chat_messages_read(chat_id: int, current_user: str = Depends(get_
 async def get_admin_comments(current_user: str = Depends(get_current_user)):
     data = load_data()
     return {"comments": data.get("comments", [])}
+
+
+@app.post("/api/admin/comments/add")
+async def add_admin_comment(comment_data: dict, current_user: str = Depends(get_current_user)):
+    """Добавить комментарий от админа"""
+    data = load_data()
+
+    if "comments" not in data:
+        data["comments"] = []
+
+    # Создаем новый комментарий
+    new_comment = {
+        "id": len(data["comments"]) + 1,
+        "profile_id": comment_data.get("profile_id"),
+        "author_name": comment_data.get("author_name"),
+        "rating": comment_data.get("rating", 5),
+        "comment": comment_data.get("comment"),
+        "created_at": datetime.now().isoformat(),
+        "visible": 1
+    }
+
+    data["comments"].append(new_comment)
+    save_data(data)
+
+    logger.info(f"Admin {current_user} added comment for profile {comment_data.get('profile_id')}")
+    return {"status": "success", "comment_id": new_comment["id"]}
 
 
 # Промокоды API
