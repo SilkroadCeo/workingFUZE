@@ -1863,6 +1863,9 @@ async def admin_dashboard(request: Request):
 
             <div id="comments" class="content">
                 <h3>Manage Comments</h3>
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold; font-size: 16px;">
+                    ✅ NEW SYSTEM: Admin Can Add Comments to Any Profile
+                </div>
                 <div class="comments-management">
                     <div id="profiles-list-comments" style="margin-bottom: 20px;"></div>
                     <div id="add-comment-form" style="display: none; background: rgba(102, 126, 234, 0.05); padding: 20px; border-radius: 10px; margin-top: 20px;">
