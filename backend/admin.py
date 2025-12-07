@@ -1878,10 +1878,6 @@ async def admin_dashboard(request: Request):
                             <label>Comment:</label>
                             <textarea id="comment-text" placeholder="Enter comment" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; min-height: 100px;"></textarea>
                         </div>
-                        <div class="form-group" style="margin-top: 15px;">
-                            <label>Rating (1-5):</label>
-                            <input type="number" id="comment-rating" min="1" max="5" value="5" required style="width: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
-                        </div>
                         <button type="button" onclick="saveCommentAdmin()" style="margin-top: 15px; padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer;">Save Comment</button>
                         <button type="button" onclick="cancelAddComment()" style="margin-top: 15px; margin-left: 10px; padding: 10px 20px; background: #999; color: white; border: none; border-radius: 5px; cursor: pointer;">Cancel</button>
                     </div>
@@ -2701,7 +2697,6 @@ async def admin_dashboard(request: Request):
                 document.getElementById('add-comment-form').style.display = 'block';
                 document.getElementById('comment-author-name').value = '';
                 document.getElementById('comment-text').value = '';
-                document.getElementById('comment-rating').value = '5';
             }
 
             function cancelAddComment() {
@@ -2712,7 +2707,6 @@ async def admin_dashboard(request: Request):
             async function saveCommentAdmin() {
                 const authorName = document.getElementById('comment-author-name').value.trim();
                 const commentText = document.getElementById('comment-text').value.trim();
-                const rating = parseInt(document.getElementById('comment-rating').value);
 
                 if (!authorName || !commentText) {
                     alert('Please fill in all fields');
@@ -2731,8 +2725,7 @@ async def admin_dashboard(request: Request):
                         body: JSON.stringify({
                             profile_id: selectedProfileForComment,
                             author_name: authorName,
-                            comment: commentText,
-                            rating: rating
+                            comment: commentText
                         })
                     });
 
@@ -4016,15 +4009,16 @@ async def add_admin_comment(comment_data: dict, current_user: str = Depends(get_
     if "comments" not in data:
         data["comments"] = []
 
-    # Создаем новый комментарий
+    # Создаем новый комментарий с правильной структурой
     new_comment = {
         "id": len(data["comments"]) + 1,
         "profile_id": comment_data.get("profile_id"),
-        "author_name": comment_data.get("author_name"),
-        "rating": comment_data.get("rating", 5),
-        "comment": comment_data.get("comment"),
-        "created_at": datetime.now().isoformat(),
-        "visible": 1
+        "user_name": comment_data.get("author_name"),  # Используем user_name для совместимости
+        "telegram_username": "",  # Пустое для админских комментариев
+        "promo_code": None,
+        "telegram_user_id": None,
+        "text": comment_data.get("comment"),  # Используем text вместо comment
+        "created_at": datetime.now().isoformat()
     }
 
     data["comments"].append(new_comment)
