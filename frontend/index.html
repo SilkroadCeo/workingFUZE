@@ -5406,9 +5406,21 @@
                 })
                 .catch(error => console.error('Error loading wallet:', error));
 
+            // Очищаем предыдущий таймер перед запуском нового
+            if (paymentTimerInterval) {
+                clearInterval(paymentTimerInterval);
+                paymentTimerInterval = null;
+            }
+
             // Вычисляем оставшееся время
             const now = Date.now();
             const remainingSeconds = Math.floor((payment.endTime - now) / 1000);
+
+            // Сбрасываем отображение таймера перед обновлением
+            const timerDisplay = document.getElementById('timer-display');
+            if (timerDisplay) {
+                timerDisplay.textContent = '00:00'; // Временно сбрасываем
+            }
 
             if (remainingSeconds > 0) {
                 startPaymentTimer(remainingSeconds);
