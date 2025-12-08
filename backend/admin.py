@@ -91,6 +91,9 @@ active_reply_sessions = {}
 
 # Инициализация Telegram бота
 telegram_bot = None
+telegram_updates_task = None  # Отслеживание задачи обновлений
+is_shutting_down = False  # Флаг для graceful shutdown
+
 if TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_TOKEN != "YOUR_BOT_TOKEN_HERE":
     try:
         telegram_bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -567,6 +570,8 @@ async def process_telegram_updates():
     """
     Обработка входящих сообщений от администратора в Telegram
     """
+    global is_shutting_down
+
     if not telegram_bot:
         return
 
@@ -575,7 +580,9 @@ async def process_telegram_updates():
 
         # Получаем последние обновления
         offset = 0
-        while True:
+        logger.info("📱 Telegram updates processor started")
+
+        while not is_shutting_down:
             try:
                 updates = await telegram_bot.get_updates(offset=offset, timeout=30)
 
@@ -633,6 +640,8 @@ async def process_telegram_updates():
             except Exception as e:
                 logger.error(f"❌ Error processing Telegram updates: {e}")
                 await asyncio.sleep(5)
+
+        logger.info("📴 Telegram updates processor stopped gracefully")
 
     except Exception as e:
         logger.error(f"❌ Error in Telegram updates processor: {e}")
@@ -766,15 +775,49 @@ async def cleanup_expired_orders():
 @app.on_event("startup")
 async def startup_event():
     """Запуск фоновых задач при старте приложения"""
+    global telegram_updates_task, is_shutting_down
+
+    # Сбрасываем флаг остановки при старте
+    is_shutting_down = False
+
     if telegram_bot and ADMIN_TELEGRAM_IDS:
-        logger.info("🚀 Starting Telegram updates processor...")
-        asyncio.create_task(process_telegram_updates())
+        # Проверяем, не запущена ли уже задача
+        if telegram_updates_task is None or telegram_updates_task.done():
+            logger.info("🚀 Starting Telegram updates processor...")
+            telegram_updates_task = asyncio.create_task(process_telegram_updates())
+        else:
+            logger.warning("⚠️ Telegram updates processor already running, skipping")
     else:
         logger.warning("⚠️ Telegram bot not configured, skipping updates processor")
 
     # Запуск задачи очистки просроченных заказов
     logger.info("🧹 Starting expired orders cleanup task...")
     asyncio.create_task(cleanup_expired_orders())
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Graceful shutdown для фоновых задач"""
+    global is_shutting_down, telegram_updates_task
+
+    logger.info("🛑 Shutting down background tasks...")
+    is_shutting_down = True
+
+    # Ждем завершения задачи обновлений Telegram
+    if telegram_updates_task and not telegram_updates_task.done():
+        logger.info("⏳ Waiting for Telegram updates task to finish...")
+        try:
+            await asyncio.wait_for(telegram_updates_task, timeout=5.0)
+            logger.info("✅ Telegram updates task stopped")
+        except asyncio.TimeoutError:
+            logger.warning("⚠️ Telegram updates task did not stop in time, cancelling...")
+            telegram_updates_task.cancel()
+            try:
+                await telegram_updates_task
+            except asyncio.CancelledError:
+                logger.info("✅ Telegram updates task cancelled")
+
+    logger.info("✅ Shutdown complete")
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
