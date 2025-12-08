@@ -4544,13 +4544,26 @@
             updateActiveFilters();
             closeFilters();
 
-            // Скрываем VIP каталоги при применении фильтров
-            vipCatalogsSection.style.display = 'none';
-
             currentPage = 0;
             currentProfiles = [];
             cardsContainer.innerHTML = `<div class="loading">${translations.loading}</div>`;
             loadMoreProfiles();
+        }
+
+        // Проверка наличия активных фильтров
+        function hasActiveFilters() {
+            return currentFilters.city !== 'all' ||
+                   currentFilters.nationality !== 'all' ||
+                   currentFilters.gender !== 'all' ||
+                   currentFilters.travel_city !== 'all' ||
+                   currentFilters.age_min > 18 ||
+                   currentFilters.age_max < 70 ||
+                   currentFilters.height_min > 120 ||
+                   currentFilters.height_max < 220 ||
+                   currentFilters.weight_min > 35 ||
+                   currentFilters.weight_max < 120 ||
+                   currentFilters.chest_min > 1 ||
+                   currentFilters.chest_max < 12;
         }
 
         // Обновление активных фильтров
@@ -4597,6 +4610,13 @@
                 tag.innerHTML = filter;
                 activeFilters.appendChild(tag);
             });
+
+            // Показываем или скрываем VIP каталог в зависимости от наличия фильтров
+            if (hasActiveFilters()) {
+                vipCatalogsSection.style.display = 'none';
+            } else {
+                vipCatalogsSection.style.display = 'block';
+            }
         }
 
         // Удаление фильтра
