@@ -2536,6 +2536,15 @@
                     <h3 id="payment-success-title">Awaiting Confirmation</h3>
                     <p id="payment-success-message">Processing payment... Close the window, you will receive a notification in chat.</p>
 
+                    <div style="margin: 15px 0; padding: 10px; background: rgba(102, 126, 234, 0.1); border-radius: 8px;">
+                        <div style="margin-bottom: 8px;">
+                            <strong>Cryptocurrency:</strong> <span id="selected-crypto-type">-</span>
+                        </div>
+                        <div>
+                            <strong>Amount:</strong> $<span id="selected-amount">-</span>
+                        </div>
+                    </div>
+
                     <div class="wallet-address" id="wallet-address" style="margin: 15px 0;">
                         <strong id="wallet-address-label">Wallet Address:</strong>
                         <div id="address-text" style="margin: 8px 0; word-break: break-all; background: rgba(255,107,157,0.1); padding: 12px; border-radius: 6px; font-size: 13px;"></div>
@@ -5173,19 +5182,31 @@
         let currentPendingPayment = null; // Текущий открытый платеж
 
         function startPaymentTimer(seconds) {
+            console.log('[DEBUG] startPaymentTimer called with seconds:', seconds);
+
             // Очищаем предыдущий таймер, если есть
             if (paymentTimerInterval) {
+                console.log('[DEBUG] Clearing previous timer interval');
                 clearInterval(paymentTimerInterval);
             }
 
             let timeRemaining = seconds;
             const timerDisplay = document.getElementById('timer-display');
 
+            if (!timerDisplay) {
+                console.error('[ERROR] Timer display element not found in startPaymentTimer!');
+                return;
+            }
+
+            console.log('[DEBUG] Timer display element found:', timerDisplay);
+
             // Обновляем дисплей сразу, чтобы показать правильное время
             const updateDisplay = () => {
                 const minutes = Math.floor(timeRemaining / 60);
                 const secs = timeRemaining % 60;
-                timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                const displayText = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                timerDisplay.textContent = displayText;
+                console.log('[DEBUG] Timer updated:', displayText, 'remaining:', timeRemaining);
             };
 
             // Показываем начальное значение
@@ -5198,12 +5219,15 @@
 
                 // Когда время истекло
                 if (timeRemaining <= 0) {
+                    console.log('[DEBUG] Timer expired, clearing interval');
                     clearInterval(paymentTimerInterval);
                     timerDisplay.textContent = '00:00';
                     // Очищаем незавершенный платеж когда таймер истек
                     clearPendingPayment();
                 }
             }, 1000);
+
+            console.log('[DEBUG] Timer interval started, ID:', paymentTimerInterval);
         }
 
         // Генерация случайного 18-значного кода для ордеров
@@ -5366,12 +5390,19 @@
         setInterval(syncPendingPaymentsWithBackend, 5000);
 
         function openPendingPayment(paymentId) {
+            console.log('[DEBUG] openPendingPayment called with ID:', paymentId);
+            console.log('[DEBUG] pendingPayments array:', pendingPayments);
+
             const payment = paymentId
                 ? pendingPayments.find(p => p.id === paymentId)
                 : pendingPayments[0]; // Открываем первый платеж если ID не указан
 
-            if (!payment) return;
+            if (!payment) {
+                console.error('[ERROR] Payment not found! ID:', paymentId);
+                return;
+            }
 
+            console.log('[DEBUG] Found payment:', payment);
             currentPendingPayment = payment;
 
             // Восстанавливаем профиль и открываем окно оплаты
@@ -5406,13 +5437,42 @@
                 })
                 .catch(error => console.error('Error loading wallet:', error));
 
+            // Очищаем предыдущий таймер перед запуском нового
+            if (paymentTimerInterval) {
+                clearInterval(paymentTimerInterval);
+                paymentTimerInterval = null;
+            }
+
             // Вычисляем оставшееся время
             const now = Date.now();
-            const remainingSeconds = Math.floor((payment.endTime - now) / 1000);
+            const endTime = Number(payment.endTime); // Убеждаемся что это число
+            const remainingSeconds = Math.floor((endTime - now) / 1000);
+
+            console.log('[DEBUG] Timer calculation:', {
+                now: now,
+                endTime: endTime,
+                diff: endTime - now,
+                remainingSeconds: remainingSeconds
+            });
+
+            // Получаем элемент таймера
+            const timerDisplay = document.getElementById('timer-display');
+            if (!timerDisplay) {
+                console.error('[ERROR] Timer display element not found!');
+                return;
+            }
+
+            // Принудительно сбрасываем таймер
+            timerDisplay.textContent = '00:00';
 
             if (remainingSeconds > 0) {
-                startPaymentTimer(remainingSeconds);
+                console.log('[DEBUG] Starting timer with', remainingSeconds, 'seconds');
+                // Используем небольшую задержку чтобы убедиться что DOM обновился
+                setTimeout(() => {
+                    startPaymentTimer(remainingSeconds);
+                }, 10);
             } else {
+                console.warn('[WARN] Payment expired, remaining seconds:', remainingSeconds);
                 clearPendingPayment(payment.id);
                 paymentModal.style.display = 'none';
                 document.body.style.overflow = 'auto';
@@ -5458,6 +5518,16 @@
                     // Показываем успех
                     document.getElementById('payment-selection').style.display = 'none';
                     paymentSuccess.style.display = 'block';
+
+                    // Устанавливаем информацию о платеже
+                    const cryptoTypeDisplay = {
+                        'trc20': 'USDT (TRC20)',
+                        'erc20': 'USDT (ERC20)',
+                        'bnb': 'BNB (BEP20)',
+                        'btc': 'Bitcoin'
+                    };
+                    document.getElementById('selected-crypto-type').textContent = cryptoTypeDisplay[cryptoType] || cryptoType;
+                    document.getElementById('selected-amount').textContent = amount;
 
                     // Отображаем адрес кошелька
                     if (result.wallet_address) {
@@ -5751,6 +5821,7 @@
                                             .then(res => res.json())
                                             .then(profileData => {
                                                 const createdTime = new Date(order.created_at).getTime();
+                                                // Сохраняем платеж в localStorage
                                                 savePendingPayment(
                                                     profileData,
                                                     order.amount,
@@ -5759,7 +5830,10 @@
                                                     order.id,
                                                     expiresTime // Передаем правильное время истечения из backend
                                                 );
-                                                openPendingPayment(order.id);
+                                                // Открываем окно с задержкой, чтобы убедиться что платеж сохранен
+                                                setTimeout(() => {
+                                                    openPendingPayment(order.id);
+                                                }, 50);
                                             })
                                             .catch(err => console.error('Error loading profile:', err));
                                     } else {
