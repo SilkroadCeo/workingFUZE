@@ -5519,6 +5519,16 @@
                     document.getElementById('payment-selection').style.display = 'none';
                     paymentSuccess.style.display = 'block';
 
+                    // Устанавливаем информацию о платеже
+                    const cryptoTypeDisplay = {
+                        'trc20': 'USDT (TRC20)',
+                        'erc20': 'USDT (ERC20)',
+                        'bnb': 'BNB (BEP20)',
+                        'btc': 'Bitcoin'
+                    };
+                    document.getElementById('selected-crypto-type').textContent = cryptoTypeDisplay[cryptoType] || cryptoType;
+                    document.getElementById('selected-amount').textContent = amount;
+
                     // Отображаем адрес кошелька
                     if (result.wallet_address) {
                         document.getElementById('address-text').textContent = result.wallet_address;
